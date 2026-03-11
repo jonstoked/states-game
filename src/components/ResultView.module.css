@@ -1,0 +1,143 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 24px 20px;
+  gap: 24px;
+  align-items: center;
+}
+
+.scoreSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.scoreCircle {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 3px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.scoreNumber {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.scoreLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.scoreGrade {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.stateName {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.shapesSection {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.referenceShape,
+.userShape {
+  flex: 1;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.shapeLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shapeSvg {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 160px;
+}
+
+.shapePath {
+  fill: var(--primary);
+  opacity: 0.8;
+  stroke: var(--primary-light);
+  stroke-width: 1;
+}
+
+.userShape .shapePath {
+  fill: var(--accent);
+  opacity: 0.5;
+  stroke: var(--accent);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: auto;
+}
+
+.shareBtn {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(126, 126, 190, 0.4);
+}
+
+.shareBtn:hover {
+  background: var(--primary-light);
+}
+
+.playAgainBtn {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.playAgainBtn:hover {
+  border-color: var(--primary);
+  color: var(--primary-light);
+}
