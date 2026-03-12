@@ -29,19 +29,22 @@ export function Home() {
   const pendingResultRef = useRef<ScoringResult | null>(null)
 
   useEffect(() => {
+    console.log('[Home] loading state data…')
     loadStates()
       .then((s) => {
+        console.log(`[Home] state data ready — ${s.length} states loaded`)
         setStates(s)
         setLoading(false)
       })
       .catch((err) => {
-        console.error('[Home] Failed to load states:', err)
+        console.error('[Home] failed to load states:', err)
       })
   }, [setStates])
 
   // Compute score once when entering animating phase
   useEffect(() => {
     if (phase === 'animating' && currentState && drawnStrokes.length > 0) {
+      console.log('[Home] phase=animating detected — triggering scoreDrawing')
       pendingResultRef.current = scoreDrawing(drawnStrokes, currentState)
     }
   }, [phase, currentState, drawnStrokes])
@@ -62,6 +65,7 @@ export function Home() {
 
   const handleAnimationComplete = useCallback(() => {
     if (pendingResultRef.current) {
+      console.log('[Home] animation complete — transitioning to results')
       setResults(pendingResultRef.current)
     }
   }, [setResults])

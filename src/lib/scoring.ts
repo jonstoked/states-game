@@ -16,15 +16,15 @@ export interface ScoringResult {
  * bounding box as the reference polygon.
  */
 export function normalizeDrawing(strokes: Point[][], stateDatum: StateDatum): Point[] {
-  // Flatten all strokes into one polygon (auto-close last point to first)
   const allPoints: Point[] = strokes.flatMap((s) => s)
-  if (allPoints.length < 3) return allPoints
+  console.log(`[Scoring] normalizeDrawing — input: ${strokes.length} stroke(s), ${allPoints.length} total points`)
 
-  // Compute user drawing bounding box
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity
+  if (allPoints.length < 3) {
+    console.warn('[Scoring] normalizeDrawing — too few points, skipping normalization')
+    return allPoints
+  }
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const [x, y] of allPoints) {
     if (x < minX) minX = x
     if (y < minY) minY = y
@@ -34,17 +34,19 @@ export function normalizeDrawing(strokes: Point[][], stateDatum: StateDatum): Po
 
   const userW = maxX - minX || 1
   const userH = maxY - minY || 1
+  console.log(`[Scoring] user drawing bbox — x:[${minX.toFixed(1)}, ${maxX.toFixed(1)}] y:[${minY.toFixed(1)}, ${maxY.toFixed(1)}] size:${userW.toFixed(1)}×${userH.toFixed(1)}`)
 
   const [stMinX, stMinY, stMaxX, stMaxY] = stateDatum.bounds
   const stW = stMaxX - stMinX
   const stH = stMaxY - stMinY
+  console.log(`[Scoring] reference bbox for "${stateDatum.name}" — x:[${stMinX.toFixed(1)}, ${stMaxX.toFixed(1)}] y:[${stMinY.toFixed(1)}, ${stMaxY.toFixed(1)}] size:${stW.toFixed(1)}×${stH.toFixed(1)}`)
 
-  // Uniform scale to fit, centered in state bounding box
   const scale = Math.min(stW / userW, stH / userH)
   const scaledW = userW * scale
   const scaledH = userH * scale
   const offsetX = stMinX + (stW - scaledW) / 2
   const offsetY = stMinY + (stH - scaledH) / 2
+  console.log(`[Scoring] normalization — scale:${scale.toFixed(4)}, offset:(${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`)
 
   return allPoints.map(([x, y]) => [
     (x - minX) * scale + offsetX,
@@ -59,10 +61,14 @@ export function normalizeDrawing(strokes: Point[][], stateDatum: StateDatum): Po
 function rasterize(
   points: Point[],
   bounds: [number, number, number, number],
+  label: string,
 ): Uint8ClampedArray {
   const canvas = new OffscreenCanvas(RASTER_SIZE, RASTER_SIZE)
   const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D
-  if (!ctx || points.length < 3) return new Uint8ClampedArray(RASTER_SIZE * RASTER_SIZE)
+  if (!ctx || points.length < 3) {
+    console.warn(`[Scoring] rasterize(${label}) — skipped, only ${points.length} point(s)`)
+    return new Uint8ClampedArray(RASTER_SIZE * RASTER_SIZE)
+  }
 
   const [minX, minY, maxX, maxY] = bounds
   const w = maxX - minX || 1
@@ -82,10 +88,13 @@ function rasterize(
 
   const imageData = ctx.getImageData(0, 0, RASTER_SIZE, RASTER_SIZE)
   const mask = new Uint8ClampedArray(RASTER_SIZE * RASTER_SIZE)
+  let filledPixels = 0
   for (let i = 0; i < mask.length; i++) {
-    // Alpha channel > 0 means filled
     mask[i] = imageData.data[i * 4 + 3] > 0 ? 1 : 0
+    if (mask[i]) filledPixels++
   }
+  const fillPct = ((filledPixels / mask.length) * 100).toFixed(1)
+  console.log(`[Scoring] rasterize(${label}) — filled pixels: ${filledPixels}/${mask.length} (${fillPct}%)`)
   return mask
 }
 
@@ -101,8 +110,13 @@ function computeIoU(maskA: Uint8ClampedArray, maskB: Uint8ClampedArray): number 
     if (a && b) intersection++
     if (a || b) union++
   }
-  if (union === 0) return 0
-  return Math.round((intersection / union) * 100)
+  if (union === 0) {
+    console.warn('[Scoring] computeIoU — union is 0, both masks empty')
+    return 0
+  }
+  const score = Math.round((intersection / union) * 100)
+  console.log(`[Scoring] IoU — intersection:${intersection} union:${union} ratio:${(intersection / union).toFixed(4)} → score:${score}`)
+  return score
 }
 
 /**
@@ -135,15 +149,24 @@ export function computeAnimationTargets(
  * 4. Compute animation targets
  */
 export function scoreDrawing(strokes: Point[][], stateDatum: StateDatum): ScoringResult {
+  const t0 = performance.now()
+  console.group(`[Scoring] scoreDrawing — "${stateDatum.name}"`)
+  console.log(`  strokes: ${strokes.length}, ref polygon points: ${stateDatum.polygonPoints.length}`)
+
   const normalizedPoints = normalizeDrawing(strokes, stateDatum)
+  console.log(`  normalized points: ${normalizedPoints.length}`)
 
   const refPoints = stateDatum.polygonPoints
-
-  const maskUser = rasterize(normalizedPoints, stateDatum.bounds)
-  const maskRef = rasterize(refPoints, stateDatum.bounds)
+  const maskUser = rasterize(normalizedPoints, stateDatum.bounds, 'user')
+  const maskRef = rasterize(refPoints, stateDatum.bounds, 'reference')
   const score = computeIoU(maskUser, maskRef)
 
   const animationTargets = computeAnimationTargets(normalizedPoints, refPoints)
+  console.log(`  animation targets computed: ${animationTargets.length}`)
+
+  const elapsed = (performance.now() - t0).toFixed(1)
+  console.log(`  ✓ final score: ${score}/100 (${elapsed}ms)`)
+  console.groupEnd()
 
   return { score, normalizedPoints, animationTargets }
 }
