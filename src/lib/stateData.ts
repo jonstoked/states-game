@@ -1,11 +1,9 @@
 import { feature } from 'topojson-client'
 import type { Topology, GeometryCollection } from 'topojson-specification'
-import { geoAlbersUsa, geoPath } from 'd3-geo'
+import { geoAlbersUsa } from 'd3-geo'
 import type { GeoGeometryObjects } from 'd3-geo'
 
-// We fetch the JSON at runtime so we can use dynamic import
-// and avoid large bundle size in initial load.
-const STATES_URL = new URL('../../node_modules/us-atlas/states-10m.json', import.meta.url).href
+const STATES_URL = '/states-10m.json'
 
 export type Point = [number, number]
 
@@ -27,20 +25,29 @@ const CANVAS_H = 600
 
 const projection = geoAlbersUsa().scale(1300).translate([CANVAS_W / 2, CANVAS_H / 2])
 
+function projectRing(ring: number[][]): Point[] {
+  return ring
+    .map((c) => projection(c as [number, number]))
+    .filter((p): p is Point => p !== null)
+}
+
 function extractRings(geometry: GeoGeometryObjects): Point[][] {
+  if (!geometry) return []
   const rings: Point[][] = []
   if (geometry.type === 'Polygon') {
     for (const ring of geometry.coordinates) {
-      rings.push(ring.map((c) => projection(c as [number, number])!))
+      const projected = projectRing(ring)
+      if (projected.length > 2) rings.push(projected)
     }
   } else if (geometry.type === 'MultiPolygon') {
     for (const polygon of geometry.coordinates) {
       for (const ring of polygon) {
-        rings.push(ring.map((c) => projection(c as [number, number])!))
+        const projected = projectRing(ring)
+        if (projected.length > 2) rings.push(projected)
       }
     }
   }
-  return rings.filter((r) => r.length > 2)
+  return rings
 }
 
 function boundsFromPoints(rings: Point[][]): [number, number, number, number] {
@@ -73,9 +80,8 @@ export async function loadStates(): Promise<StateDatum[]> {
     states: GeometryCollection<{ name: string }>
   }>
 
-  // Use d3-geo path generator to get the projected SVG path for each state
-  const path = geoPath(projection)
-  const fc = feature(topology, topology.objects.states)
+  // Pass 'states' as a string key — always returns FeatureCollection
+  const fc = feature(topology, 'states')
 
   const states: StateDatum[] = []
 
@@ -102,9 +108,6 @@ export async function loadStates(): Promise<StateDatum[]> {
       allRings,
       bounds,
     })
-
-    // Suppress unused variable warning - path is used for side-effect tree shaking
-    void path
   }
 
   // Sort alphabetically for consistent ordering

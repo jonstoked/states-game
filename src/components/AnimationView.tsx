@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect } from 'react'
 import type { Point, StateDatum } from '../lib/stateData'
 import styles from './AnimationView.module.css'
 
@@ -10,6 +10,28 @@ interface AnimationViewProps {
 }
 
 const DURATION_MS = 1200
+const PADDING = 24
+
+function easeInOut(t: number) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+}
+
+/** Returns a transform function that maps from state-coordinate space → canvas px */
+function makeTransform(
+  bounds: [number, number, number, number],
+  canvasW: number,
+  canvasH: number,
+): (p: Point) => Point {
+  const [minX, minY, maxX, maxY] = bounds
+  const stW = maxX - minX || 1
+  const stH = maxY - minY || 1
+  const drawW = canvasW - PADDING * 2
+  const drawH = canvasH - PADDING * 2
+  const scale = Math.min(drawW / stW, drawH / stH)
+  const offsetX = PADDING + (drawW - stW * scale) / 2
+  const offsetY = PADDING + (drawH - stH * scale) / 2
+  return ([x, y]) => [(x - minX) * scale + offsetX, (y - minY) * scale + offsetY]
+}
 
 export function AnimationView({
   normalizedPoints,
@@ -19,34 +41,61 @@ export function AnimationView({
 }: AnimationViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
-  const startTimeRef = useRef<number>(0)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
 
-  const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
 
-  const draw = useCallback(
-    (progress: number) => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
+    const container = canvas.parentElement!
+    const rect = container.getBoundingClientRect()
+    canvas.width = rect.width
+    canvas.height = rect.height
+
+    const ctx = canvas.getContext('2d')!
+    const transform = makeTransform(stateDatum.bounds, canvas.width, canvas.height)
+
+    const refPoints = stateDatum.polygonPoints.map(transform)
+    const startPoints = normalizedPoints.map(transform)
+    const endPoints = animationTargets.map(transform)
+
+    const startTime = performance.now()
+
+    const animate = (now: number) => {
+      const progress = (now - startTime) / DURATION_MS
+      const t = easeInOut(Math.min(progress, 1))
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      const t = easeInOut(Math.min(progress, 1))
-
-      // Draw animated user points moving toward reference
-      if (normalizedPoints.length > 0) {
+      // Reference silhouette — fades in
+      if (refPoints.length > 1) {
         ctx.beginPath()
-        ctx.strokeStyle = '#7e7ebe'
+        ctx.strokeStyle = `rgba(209, 209, 255, ${t * 0.5})`
+        ctx.fillStyle = `rgba(126, 126, 190, ${t * 0.15})`
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([5, 5])
+        ctx.moveTo(refPoints[0][0], refPoints[0][1])
+        for (let i = 1; i < refPoints.length; i++) {
+          ctx.lineTo(refPoints[i][0], refPoints[i][1])
+        }
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+
+      // User drawing — morphs toward reference
+      if (startPoints.length > 1) {
+        const interpolated = startPoints.map(([x, y], i) => {
+          const [tx, ty] = endPoints[i] ?? [x, y]
+          return [x + (tx - x) * t, y + (ty - y) * t] as Point
+        })
+        ctx.beginPath()
+        ctx.strokeStyle = '#a5a5d8'
         ctx.lineWidth = 2
         ctx.lineJoin = 'round'
         ctx.lineCap = 'round'
-
-        const interpolated: Point[] = normalizedPoints.map(([x, y], i) => {
-          const [tx, ty] = animationTargets[i] ?? [x, y]
-          return [x + (tx - x) * t, y + (ty - y) * t]
-        })
-
         ctx.moveTo(interpolated[0][0], interpolated[0][1])
         for (let i = 1; i < interpolated.length; i++) {
           ctx.lineTo(interpolated[i][0], interpolated[i][1])
@@ -55,60 +104,17 @@ export function AnimationView({
         ctx.stroke()
       }
 
-      // Draw reference state outline at increasing opacity
-      const refPoints = stateDatum.polygonPoints
-      if (refPoints.length > 0) {
-        ctx.beginPath()
-        ctx.strokeStyle = `rgba(209, 209, 255, ${t * 0.6})`
-        ctx.lineWidth = 1.5
-        ctx.setLineDash([4, 4])
-        ctx.moveTo(refPoints[0][0], refPoints[0][1])
-        for (let i = 1; i < refPoints.length; i++) {
-          ctx.lineTo(refPoints[i][0], refPoints[i][1])
-        }
-        ctx.closePath()
-        ctx.stroke()
-        ctx.setLineDash([])
-      }
-    },
-    [normalizedPoints, animationTargets, stateDatum],
-  )
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    // Size canvas to container
-    const resize = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect()
-      if (rect) {
-        canvas.width = rect.width
-        canvas.height = rect.height
-      }
-    }
-    resize()
-
-    startTimeRef.current = performance.now()
-
-    const animate = (now: number) => {
-      const elapsed = now - startTimeRef.current
-      const progress = elapsed / DURATION_MS
-
-      draw(progress)
-
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(animate)
       } else {
-        onComplete()
+        onCompleteRef.current()
       }
     }
 
     animFrameRef.current = requestAnimationFrame(animate)
 
-    return () => {
-      cancelAnimationFrame(animFrameRef.current)
-    }
-  }, [draw, onComplete])
+    return () => cancelAnimationFrame(animFrameRef.current)
+  }, [normalizedPoints, animationTargets, stateDatum])
 
   return (
     <div className={styles.container}>

@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { loadStates, getRandomState } from '../lib/stateData'
 import { scoreDrawing } from '../lib/scoring'
+import type { ScoringResult } from '../lib/scoring'
 import { DrawingCanvas } from '../components/DrawingCanvas'
 import { AnimationView } from '../components/AnimationView'
 import { ResultView } from '../components/ResultView'
@@ -24,13 +25,26 @@ export function Home() {
 
   const [loading, setLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
+  // Hold computed result during the animation phase so it's stable
+  const pendingResultRef = useRef<ScoringResult | null>(null)
 
   useEffect(() => {
-    loadStates().then((s) => {
-      setStates(s)
-      setLoading(false)
-    })
+    loadStates()
+      .then((s) => {
+        setStates(s)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error('[Home] Failed to load states:', err)
+      })
   }, [setStates])
+
+  // Compute score once when entering animating phase
+  useEffect(() => {
+    if (phase === 'animating' && currentState && drawnStrokes.length > 0) {
+      pendingResultRef.current = scoreDrawing(drawnStrokes, currentState)
+    }
+  }, [phase, currentState, drawnStrokes])
 
   const handleStart = useCallback(() => {
     const state = getRandomState(states)
@@ -42,8 +56,15 @@ export function Home() {
   }, [submitDrawing])
 
   const handlePlayAgain = useCallback(() => {
+    pendingResultRef.current = null
     reset()
   }, [reset])
+
+  const handleAnimationComplete = useCallback(() => {
+    if (pendingResultRef.current) {
+      setResults(pendingResultRef.current)
+    }
+  }, [setResults])
 
   if (loading) {
     return (
@@ -72,17 +93,14 @@ export function Home() {
     return <DrawingCanvas onDone={handleDone} />
   }
 
-  if (phase === 'animating' && currentState) {
-    // Run scoring synchronously and trigger animation
-    const tempResult = scoringResult ?? scoreDrawing(drawnStrokes, currentState)
+  if (phase === 'animating' && currentState && pendingResultRef.current) {
+    const result = pendingResultRef.current
     return (
       <AnimationView
-        normalizedPoints={tempResult.normalizedPoints}
-        animationTargets={tempResult.animationTargets}
+        normalizedPoints={result.normalizedPoints}
+        animationTargets={result.animationTargets}
         stateDatum={currentState}
-        onComplete={() => {
-          setResults(tempResult)
-        }}
+        onComplete={handleAnimationComplete}
       />
     )
   }
@@ -105,6 +123,15 @@ export function Home() {
           />
         )}
       </>
+    )
+  }
+
+  // Fallback: animating but pendingResult not yet computed — show brief loading
+  if (phase === 'animating') {
+    return (
+      <div className={styles.loadingScreen}>
+        <div className={styles.spinner} />
+      </div>
     )
   }
 
