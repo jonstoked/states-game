@@ -40,7 +40,7 @@ export function ShareModal({ stateSlug, stateName, score, onClose }: ShareModalP
           <span className={styles.url}>{challengeUrl}</span>
         </div>
         <button className={styles.shareBtn} onClick={handleShare}>
-          {navigator.share ? 'Share' : 'Copy Link'}
+          {navigator.share != null ? 'Share' : 'Copy Link'}
         </button>
       </div>
     </div>

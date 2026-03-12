@@ -2,6 +2,7 @@ import { feature } from 'topojson-client'
 import type { Topology, GeometryCollection } from 'topojson-specification'
 import { geoAlbersUsa } from 'd3-geo'
 import type { GeoGeometryObjects } from 'd3-geo'
+import type { FeatureCollection } from 'geojson'
 
 const STATES_URL = '/states-10m.json'
 
@@ -81,7 +82,7 @@ export async function loadStates(): Promise<StateDatum[]> {
   }>
 
   // Pass 'states' as a string key — always returns FeatureCollection
-  const fc = feature(topology, 'states')
+  const fc = feature(topology, 'states') as unknown as FeatureCollection
 
   const states: StateDatum[] = []
 
