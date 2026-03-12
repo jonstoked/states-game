@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { loadStates, getRandomState } from '../lib/stateData'
 import { scoreDrawing } from '../lib/scoring'
@@ -20,13 +20,14 @@ export function Home() {
     startGame,
     submitDrawing,
     setResults,
+    retry,
     reset,
   } = useGameStore()
 
   const [loading, setLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
-  // Hold computed result during the animation phase so it's stable
-  const pendingResultRef = useRef<ScoringResult | null>(null)
+  // useState (not useRef) so the component re-renders when the result is ready
+  const [pendingResult, setPendingResult] = useState<ScoringResult | null>(null)
 
   useEffect(() => {
     console.log('[Home] loading state data…')
@@ -45,7 +46,8 @@ export function Home() {
   useEffect(() => {
     if (phase === 'animating' && currentState && drawnStrokes.length > 0) {
       console.log('[Home] phase=animating detected — triggering scoreDrawing')
-      pendingResultRef.current = scoreDrawing(drawnStrokes, currentState)
+      const result = scoreDrawing(drawnStrokes, currentState)
+      setPendingResult(result)
     }
   }, [phase, currentState, drawnStrokes])
 
@@ -58,17 +60,22 @@ export function Home() {
     submitDrawing()
   }, [submitDrawing])
 
-  const handlePlayAgain = useCallback(() => {
-    pendingResultRef.current = null
+  const handleRetry = useCallback(() => {
+    setPendingResult(null)
+    retry()
+  }, [retry])
+
+  const handleNewGame = useCallback(() => {
+    setPendingResult(null)
     reset()
   }, [reset])
 
   const handleAnimationComplete = useCallback(() => {
-    if (pendingResultRef.current) {
+    if (pendingResult) {
       console.log('[Home] animation complete — transitioning to results')
-      setResults(pendingResultRef.current)
+      setResults(pendingResult)
     }
-  }, [setResults])
+  }, [pendingResult, setResults])
 
   if (loading) {
     return (
@@ -97,12 +104,11 @@ export function Home() {
     return <DrawingCanvas onDone={handleDone} />
   }
 
-  if (phase === 'animating' && currentState && pendingResultRef.current) {
-    const result = pendingResultRef.current
+  if (phase === 'animating' && currentState && pendingResult) {
     return (
       <AnimationView
-        normalizedPoints={result.normalizedPoints}
-        animationTargets={result.animationTargets}
+        normalizedPoints={pendingResult.normalizedPoints}
+        animationTargets={pendingResult.animationTargets}
         stateDatum={currentState}
         onComplete={handleAnimationComplete}
       />
@@ -115,7 +121,8 @@ export function Home() {
         <ResultView
           stateDatum={currentState}
           result={scoringResult}
-          onPlayAgain={handlePlayAgain}
+          onRetry={handleRetry}
+          onNewGame={handleNewGame}
           onShare={() => setShowShare(true)}
         />
         {showShare && (

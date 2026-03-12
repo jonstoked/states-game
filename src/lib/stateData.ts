@@ -117,7 +117,7 @@ export async function loadStates(): Promise<StateDatum[]> {
 }
 
 // Set to a state slug (e.g. 'colorado') to always use that state during testing, or null for random.
-const DEBUG_FORCE_STATE: string | null = 'colorado'
+const DEBUG_FORCE_STATE: string | null = null; // 'colorado'
 
 export function getRandomState(states: StateDatum[]): StateDatum {
   if (DEBUG_FORCE_STATE) {

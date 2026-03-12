@@ -22,6 +22,7 @@ interface GameState {
   submitDrawing: () => void
   setAnimating: () => void
   setResults: (result: ScoringResult) => void
+  retry: () => void
   reset: () => void
 }
 
@@ -84,9 +85,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     })
   },
 
+  retry: () => {
+    const { phase, currentState } = get()
+    logTransition(phase, 'drawing', `retry "${currentState?.name}"`)
+    set({
+      phase: 'drawing',
+      drawnStrokes: [],
+      scoringResult: null,
+    })
+  },
+
   reset: () => {
     const { phase } = get()
-    logTransition(phase, 'home', 'play again')
+    logTransition(phase, 'home', 'new game')
     set({
       phase: 'home',
       currentState: null,

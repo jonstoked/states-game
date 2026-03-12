@@ -5,7 +5,8 @@ import styles from './ResultView.module.css'
 interface ResultViewProps {
   stateDatum: StateDatum
   result: ScoringResult
-  onPlayAgain: () => void
+  onRetry: () => void
+  onNewGame: () => void
   onShare: () => void
 }
 
@@ -75,7 +76,7 @@ function scoreColor(score: number): string {
   return '#f87171'
 }
 
-export function ResultView({ stateDatum, result, onPlayAgain, onShare }: ResultViewProps) {
+export function ResultView({ stateDatum, result, onRetry, onNewGame, onShare }: ResultViewProps) {
   const { score, normalizedPoints } = result
 
   return (
@@ -109,8 +110,11 @@ export function ResultView({ stateDatum, result, onPlayAgain, onShare }: ResultV
         <button className={styles.shareBtn} onClick={onShare}>
           Share Challenge
         </button>
-        <button className={styles.playAgainBtn} onClick={onPlayAgain}>
-          Play Again
+        <button className={styles.retryBtn} onClick={onRetry}>
+          Retry {stateDatum.name}
+        </button>
+        <button className={styles.newGameBtn} onClick={onNewGame}>
+          New Game
         </button>
       </div>
     </div>

@@ -127,7 +127,21 @@
   background: var(--primary-light);
 }
 
-.playAgainBtn {
+.retryBtn {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1.5px solid var(--primary);
+  color: var(--primary-light);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.retryBtn:hover {
+  background: rgba(126, 126, 190, 0.12);
+}
+
+.newGameBtn {
   padding: 14px;
   border-radius: var(--radius);
   background: transparent;
@@ -137,7 +151,7 @@
   font-weight: 500;
 }
 
-.playAgainBtn:hover {
+.newGameBtn:hover {
   border-color: var(--primary);
   color: var(--primary-light);
 }
